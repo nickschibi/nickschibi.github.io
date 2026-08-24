@@ -359,6 +359,66 @@ main{padding:42px 20px 55px}
   .endpoint.left,.endpoint.right{font-size:15px}
 }
 
+
+/* Compartilhamento do resultado — mesma linguagem visual do HTML principal */
+.share-result-wrap{display:flex;justify-content:center;margin-top:24px}
+.share-result-btn{border:0;background:var(--navy);color:#fff;border-radius:6px;padding:15px 27px;font-size:11px;font-weight:700;letter-spacing:.6px;cursor:pointer;transition:transform .18s ease,opacity .18s ease}
+.share-result-btn:hover{transform:translateY(-1px);opacity:.94}
+.share-result-btn:disabled{opacity:.6;cursor:wait;transform:none}
+.share-status{text-align:center;min-height:18px;margin-top:10px;color:var(--steel);font-size:12px}
+
+
+/* Prévia da imagem para compartilhamento */
+.share-preview{
+  position:fixed;
+  inset:0;
+  z-index:9999;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  padding:18px;
+  background:rgba(29,53,87,.82);
+  backdrop-filter:blur(6px);
+}
+.share-preview.open{display:flex}
+.share-preview-card{
+  width:min(430px,94vw);
+  max-height:94vh;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+.share-preview-image{
+  width:100%;
+  max-height:78vh;
+  object-fit:contain;
+  border-radius:10px;
+  background:#f1faee;
+  box-shadow:0 18px 50px rgba(0,0,0,.28);
+}
+.share-preview-actions{
+  display:flex;
+  gap:10px;
+}
+.share-preview-actions button{
+  flex:1;
+  border:0;
+  border-radius:6px;
+  padding:14px 16px;
+  font-size:11px;
+  font-weight:700;
+  letter-spacing:.5px;
+  cursor:pointer;
+}
+#sharePreviewShare{background:var(--navy);color:#fff}
+#sharePreviewSave{background:var(--paper);color:var(--navy);border:1px solid #a8dadc}
+#sharePreviewClose{position:absolute;top:16px;right:16px;width:42px;height:42px;border:0;border-radius:50%;background:#fff;color:var(--navy);font-size:20px;cursor:pointer}
+.share-preview-help{
+  color:#fff;
+  font:14px/1.4 "Cormorant Garamond",serif;
+  text-align:center;
+}
+
 </style></head>
 <body><div class="page">
 <header><div class="brand"><div class="seal">道</div> Arquétipos de Kendo</div></header>
@@ -423,9 +483,29 @@ main{padding:42px 20px 55px}
 <div class="secondary"><div><div class="label" id="precisionLabel">Precisão do resultado</div><h3 id="secondaryName"></h3></div></div>
 <div class="panel ranking-panel" style="margin-top:20px"><h2>Proximidade entre arquétipos</h2><div id="ranking"></div></div>
 <div class="result-actions"><button type="button" id="restartQuizBtn">FAZER O QUIZ NOVAMENTE&nbsp;&nbsp; →</button></div>
+<div class="share-result-wrap">
+  <button type="button" class="share-result-btn" id="shareResultBtn">COMPARTILHAR RESULTADO&nbsp;&nbsp; ↗</button>
+</div>
+<div class="share-status" id="shareStatus" aria-live="polite"></div>
+
 </section></section>
 </div>
 
+
+
+<div class="share-preview" id="sharePreview" aria-hidden="true">
+  <button type="button" id="sharePreviewClose" aria-label="Fechar">×</button>
+  <div class="share-preview-card">
+    <img id="sharePreviewImage" class="share-preview-image" alt="Imagem do resultado para compartilhar">
+    <div class="share-preview-help">
+      No celular, use <b>Compartilhar</b> ou toque e segure a imagem para salvá-la.
+    </div>
+    <div class="share-preview-actions">
+      <button type="button" id="sharePreviewShare">COMPARTILHAR</button>
+      <button type="button" id="sharePreviewSave">SALVAR IMAGEM</button>
+    </div>
+  </div>
+</div>
 
 <script>
 'use strict';
@@ -433,7 +513,7 @@ const QUESTIONS=[["Quando manifesto meu Ki durante o combate, como tende a ser m
 const MATRIX={"1": [[2, 1, 0, 0, 1, 0, 0, 2], [1, 0, -1, -1, 0, -1, -1, 1], [1, -1, -2, -2, -1, -2, -2, 0], [1, 0, -1, -1, 0, -1, -1, 1], [2, 1, 0, 0, 1, 0, 0, 2]], "2": [[0, 1, 2, 2, 0, 0, 0, -2], [0, 0, 1, 1, 0, 0, 0, -1], [1, 0, 1, 0, 0, 0, 0, 0], [2, 0, 1, 0, 0, 0, 0, 1], [2, 0, 2, -1, 0, 0, 0, 2]], "3": [[0, 0, 2, 0, 0, 0, 0, 1], [0, -1, 1, 1, 0, 0, 0, 1], [1, -2, 1, 2, 0, 0, 1, 1], [1, -1, 1, 1, 0, 0, 1, 1], [2, 0, 2, 0, 0, 0, 1, 1]], "4": [[1, 0, 0, 0, 2, 1, 1, 0], [1, 0, 0, 0, 2, 1, 1, 0], [1, 0, 0, 0, 2, 1, 0, 0], [1, 0, 0, 0, 1, 2, 1, 0], [1, 0, 0, 0, 1, 2, 1, 0]], "5": [[-2, 1, 2, 1, 1, -1, 2, -1], [1, 1, 1, 1, 1, 0, 1, 0], [0, 2, 1, 1, 1, 1, 1, 1], [1, 2, -1, -1, 0, 1, 0, 1], [1, 2, -1, -2, 0, 2, -1, 2]], "6": [[-2, 0, 2, 1, 1, 2, 2, -2], [-1, 0, 1, 1, 0, 0, 1, -1], [1, 0, 1, 1, -1, 1, 1, 1], [2, 0, 0, -1, 0, 1, 0, 2], [2, 0, -1, -2, 1, 0, -1, 2]], "7": [[2, 0, -1, -2, 1, 0, 0, 1], [2, 0, 0, -1, 1, 0, 0, 0], [1, 0, 1, 0, 0, 0, 0, 0], [-1, 0, 1, 0, -1, 0, 0, 0], [-2, 0, 1, 0, -1, 0, 0, 1]], "8": [[2, 1, 1, 0, 2, 1, 2, 2], [2, 1, 1, 0, 2, 1, 2, 2], [2, 1, 0, 0, 2, 1, 2, 2], [2, 2, 1, 0, 2, 1, 1, 2], [2, 2, 1, 0, 2, 1, 1, 2]], "9": [[2, 2, 0, -2, -2, 2, -2, 1], [1, 2, 0, -1, -1, 2, -1, 1], [1, 2, 0, 0, 1, 1, 1, 1], [1, 1, 0, 1, 2, 0, 2, 1], [2, 1, 0, 2, 2, -1, 2, 1]], "10": [[0, 0, 1, 0, 2, 1, 2, 1], [0, 0, 0, 0, 1, 1, 1, 1], [0, 0, 0, 0, 1, 1, 1, 1], [0, 0, 0, 0, 1, 2, 1, 2], [0, 0, 0, 0, 2, 2, 2, 2]], "11": [[1, 0, 2, 1, 2, 0, 1, 1], [1, 0, 1, 1, 1, 0, 1, 1], [1, 1, 1, 1, 0, 1, 1, 1], [2, 1, 0, 2, 0, 1, 0, 1], [2, 2, 0, 2, -1, 1, 0, 2]], "12": [[-1, -1, 2, 1, 1, 0, 1, 0], [0, 0, 2, 1, 1, 0, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1], [2, 2, 0, 2, 0, 1, 1, 2], [2, 2, -1, 2, 0, 1, 1, 2]], "13": [[1, 0, 0, 0, 2, 1, 2, 0], [1, 0, 0, 0, 2, 1, 1, 0], [1, 1, 0, 0, 1, 1, 1, 1], [2, 1, 0, 0, 1, 2, 1, 1], [2, 2, 0, 0, -1, 2, 1, 2]], "14": [[1, 0, 2, -1, 2, 0, 1, 1], [1, 0, 1, 0, 1, 0, 1, 1], [1, 1, 1, 1, 0, 1, 1, 1], [1, 1, 1, 2, 0, 1, 0, 1], [1, 2, 1, 2, -1, 2, 0, 1]], "15": [[1, 0, 2, 0, 2, 0, 2, 1], [1, 0, 1, 0, 1, 0, 2, 1], [1, 1, 1, 1, 1, 1, 1, 1], [2, 1, 0, 1, 1, 1, 1, 2], [2, 2, 0, 2, 0, 1, 1, 2]], "16": [[2, 0, 2, 0, 2, 0, 1, 2], [1, 0, 1, 1, 2, 0, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 2, 0, 1, 0, 1], [1, 2, 0, 2, -1, 1, 0, 1]], "17": [[0, 2, 1, 1, -1, 2, 1, 0], [0, 1, 1, 1, 0, 1, 1, 0], [0, 1, 0, 0, 1, 1, 1, 1], [1, 0, 0, 0, 2, 0, 1, 1], [1, 0, 0, 0, 2, 0, 2, 2]], "18": [[0, 0, 2, 1, 2, 0, 1, 0], [1, 1, 1, 1, 1, 0, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1], [2, 2, 0, 2, 0, 1, 0, 1], [2, 2, -1, 2, -1, 2, 0, 2]], "19": [[-1, -1, 2, 0, 2, -1, 1, 0], [0, 0, 1, 0, 1, 0, 1, 0], [1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 0, 1, 1, 1, 0, 1], [2, 2, 0, 1, 2, 1, 0, 2]], "20": [[2, 1, 1, -2, 2, 1, 1, 1], [1, 1, 1, -1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1], [1, 2, 1, 2, 0, 1, 0, 1], [1, 2, 1, 2, 0, 2, 0, 1]]};
 const ANIMALS={"🐢 Tartaruga": [1, 1, 4, 1, 5, 1, 3, 2], "🦉 Coruja": [2, 2, 5, 2, 3, 1, 4, 1], "🐍 Serpente": [2, 1, 3, 2, 1, 5, 4, 1], "🦂 Escorpião": [1, 2, 3, 1, 2, 4, 5, 2], "🐒 Macaco": [1, 5, 1, 3, 2, 4, 2, 1], "🐙 Polvo": [2, 3, 4, 5, 2, 1, 2, 1], "🐱 Gato": [1, 5, 2, 3, 2, 1, 4, 2], "🐆 Leopardo": [3, 5, 2, 1, 1, 4, 1, 3], "🐯 Tigre": [5, 2, 1, 2, 1, 3, 2, 4], "🐘 Elefante": [4, 1, 1, 2, 5, 1, 2, 3], "🐻 Urso": [5, 1, 2, 1, 3, 4, 1, 2]};
 const AXIS=["Pressão","Iniciativa","Leitura","Adaptação","Estabilidade","Explosão","Precisão","Presença"];
-const PROFILES={"Tartaruga": {"emoji": "🐢", "slogan": "Resiste, sustenta e permanece.", "essencia": "Sua força está em manter a estrutura quando o confronto fica desconfortável. Você não precisa dominar pelo volume: continua presente, estável e difícil de deslocar.", "style": "Sua força está em manter a estrutura quando o confronto fica desconfortável. Você não precisa dominar pelo volume: continua presente, estável e difícil de deslocar.", "strength": "Estabilidade e capacidade de permanecer funcional sob pressão.", "risk": "Pode proteger demais a própria estrutura e demorar para assumir a iniciativa.", "exercise": "Treine entradas simples e antecipadas, sem esperar que a situação esteja perfeita."}, "Coruja": {"emoji": "🦉", "slogan": "Entende antes de agir.", "essencia": "Você busca padrões, intenções e sinais. Sua paciência existe para transformar observação em compreensão e compreensão em decisão.", "style": "Você busca padrões, intenções e sinais. Sua paciência existe para transformar observação em compreensão e compreensão em decisão.", "strength": "Leitura do adversário e antecipação estratégica.", "risk": "Pode transformar análise em hesitação.", "exercise": "Treine gatilhos objetivos de decisão para agir assim que a leitura estiver suficiente."}, "Serpente": {"emoji": "🐍", "slogan": "Reconhece, concentra e explode.", "essencia": "Você pode parecer quieto, mas sua identidade está na capacidade de transformar uma oportunidade em uma ação súbita e concentrada. Não é apenas espera: é explosão no instante decisivo.", "style": "Você pode parecer quieto, mas sua identidade está na capacidade de transformar uma oportunidade em uma ação súbita e concentrada. Não é apenas espera: é explosão no instante decisivo.", "strength": "Explosão e capacidade de finalizar uma oportunidade rapidamente.", "risk": "Pode depender demais do momento perfeito ou gastar tudo em uma única ação.", "exercise": "Treine criar pequenas oportunidades para não depender apenas de aberturas espontâneas."}, "Escorpião": {"emoji": "🦂", "slogan": "Espera a falha para punir.", "essencia": "Sua força está em localizar uma vulnerabilidade específica e responder exatamente nela. Você não precisa dominar todo o confronto; precisa reconhecer o ponto decisivo.", "style": "Sua força está em localizar uma vulnerabilidade específica e responder exatamente nela. Você não precisa dominar todo o confronto; precisa reconhecer o ponto decisivo.", "strength": "Precisão e punição de erros.", "risk": "Pode esperar demais por uma abertura ideal.", "exercise": "Treine aumentar o volume de tentativas sem abandonar a qualidade da seleção."}, "Macaco": {"emoji": "🐒", "slogan": "Quebra padrões antes que entendam você.", "essencia": "Você usa mudança, ritmo e imprevisibilidade como arma. Sua força está em impedir que o adversário se acomode a uma única leitura.", "style": "Você usa mudança, ritmo e imprevisibilidade como arma. Sua força está em impedir que o adversário se acomode a uma única leitura.", "strength": "Iniciativa e quebra de padrões.", "risk": "Pode confundir variedade com eficiência.", "exercise": "Treine manter uma intenção simples mesmo quando muda a forma de agir."}, "Polvo": {"emoji": "🐙", "slogan": "Encontra outro caminho.", "essencia": "Você é o extremo da adaptação. Lê o contexto, muda a estratégia e encontra novas soluções sem precisar repetir a mesma resposta, reforça sua capacidade de perceber o outro e alterar o caminho.", "style": "Você é o extremo da adaptação. Lê o contexto, muda a estratégia e encontra novas soluções sem precisar repetir a mesma resposta, reforça sua capacidade de perceber o outro e alterar o caminho.", "strength": "Adaptação estratégica e múltiplas respostas possíveis.", "risk": "Pode adaptar-se tanto que demora a impor uma decisão própria.", "exercise": "Treine alternar conscientemente entre adaptação e imposição de plano."}, "Gato": {"emoji": "🐱", "slogan": "Age quando a abertura vale a pena.", "essencia": "Você tem iniciativa, mas ela é seletiva. Não quer apenas surpreender: quer escolher bem o momento e transformar uma oportunidade limpa em ação.", "style": "Você tem iniciativa, mas ela é seletiva. Não quer apenas surpreender: quer escolher bem o momento e transformar uma oportunidade limpa em ação.", "strength": "Iniciativa seletiva e precisão de entrada.", "risk": "Pode abandonar oportunidades por procurar uma abertura excessivamente limpa.", "exercise": "Treine reconhecer quando uma abertura é suficientemente boa, e não perfeita."}, "Leopardo": {"emoji": "🐆", "slogan": "Vê espaço e avança.", "essencia": "Você prefere converter rapidamente a oportunidade em movimento. A velocidade da decisão e o avanço ofensivo definem mais seu estilo do que a variação constante.", "style": "Você prefere converter rapidamente a oportunidade em movimento. A velocidade da decisão e o avanço ofensivo definem mais seu estilo do que a variação constante.", "strength": "Iniciativa ofensiva e conversão rápida de oportunidades.", "risk": "Pode avançar antes de avaliar completamente a situação.", "exercise": "Treine preservar a qualidade da leitura sem reduzir sua velocidade de decisão."}, "Tigre": {"emoji": "🐯", "slogan": "Domina o espaço antes do golpe.", "essencia": "Sua força é tornar sua presença impossível de ignorar. Você ocupa, pressiona e faz o adversário sentir que precisa responder ao seu campo de ação.", "style": "Sua força é tornar sua presença impossível de ignorar. Você ocupa, pressiona e faz o adversário sentir que precisa responder ao seu campo de ação.", "strength": "Pressão e domínio psicológico do espaço.", "risk": "Pode tornar-se previsível se aumentar a pressão sempre da mesma forma.", "exercise": "Treine variar a forma da pressão sem perder presença."}, "Elefante": {"emoji": "🐘", "slogan": "Avança com peso e permanência.", "essencia": "Você combina estabilidade com avanço. A identidade do Elefante absorve a imponência e a persistência física. Quando ocupa um caminho, é difícil deslocá-lo.", "style": "Você combina estabilidade com avanço. A identidade do Elefante absorve a imponência e a persistência física. Quando ocupa um caminho, é difícil deslocá-lo.", "strength": "Estabilidade, pressão contínua e presença sustentada.", "risk": "Pode tornar-se rígido ou lento para mudar de plano.", "exercise": "Treine mudanças pequenas de direção e ritmo sem perder a base."}, "Urso": {"emoji": "🐻", "slogan": "Pressiona até quebrar a resistência.", "essencia": "Você aceita o confronto direto e usa pressão, sustentação e explosões fortes para desgastar o adversário. Não precisa ser refinado o tempo todo para ser eficiente.", "style": "Você aceita o confronto direto e usa pressão, sustentação e explosões fortes para desgastar o adversário. Não precisa ser refinado o tempo todo para ser eficiente.", "strength": "Pressão, impacto e capacidade de continuar.", "risk": "Pode responder ao problema apenas aumentando força e intensidade.", "exercise": "Treine inserir leitura e escolha de alvo entre as explosões."}};
+const PROFILES={"Tartaruga": {"emoji": "🐢", "slogan": "Resiste, sustenta e permanece.", "essencia": "Sua força está em manter a estrutura quando o confronto fica desconfortável. Você não precisa dominar pelo volume: continua presente, estável e difícil de deslocar.", "style": "Sua força está em manter a estrutura quando o confronto fica desconfortável. Você não precisa dominar pelo volume: continua presente, estável e difícil de deslocar.", "strength": "Estabilidade e capacidade de permanecer funcional sob pressão.", "risk": "Pode proteger demais a própria estrutura e demorar para assumir a iniciativa.", "exercise": "Treine entradas simples e antecipadas, sem esperar que a situação esteja perfeita."}, "Coruja": {"emoji": "🦉", "slogan": "Entende antes de agir.", "essencia": "Você busca padrões, intenções e sinais. Sua paciência existe para transformar observação em compreensão e compreensão em decisão.", "style": "Você busca padrões, intenções e sinais. Sua paciência existe para transformar observação em compreensão e compreensão em decisão.", "strength": "Leitura do adversário e antecipação estratégica.", "risk": "Pode transformar análise em hesitação.", "exercise": "Treine gatilhos objetivos de decisão para agir assim que a leitura estiver suficiente."}, "Serpente": {"emoji": "🐍", "slogan": "Reconhece, concentra e explode.", "essencia": "Você pode parecer quieto, mas sua identidade está na capacidade de transformar uma oportunidade em uma ação súbita e concentrada. Não é apenas espera: é explosão no instante decisivo.", "style": "Você pode parecer quieto, mas sua identidade está na capacidade de transformar uma oportunidade em uma ação súbita e concentrada. Não é apenas espera: é explosão no instante decisivo.", "strength": "Explosão e capacidade de finalizar uma oportunidade rapidamente.", "risk": "Pode depender demais do momento perfeito ou gastar tudo em uma única ação.", "exercise": "Treine criar pequenas oportunidades para não depender apenas de aberturas espontâneas."}, "Escorpião": {"emoji": "🦂", "slogan": "Espera a falha para punir.", "essencia": "Sua força está em localizar uma vulnerabilidade específica e responder exatamente nela. Você não precisa dominar todo o confronto; precisa reconhecer o ponto decisivo.", "style": "Sua força está em localizar uma vulnerabilidade específica e responder exatamente nela. Você não precisa dominar todo o confronto; precisa reconhecer o ponto decisivo.", "strength": "Precisão e punição de erros.", "risk": "Pode esperar demais por uma abertura ideal.", "exercise": "Treine aumentar o volume de tentativas sem abandonar a qualidade da seleção."}, "Macaco": {"emoji": "🐒", "slogan": "Quebra padrões antes que entendam você.", "essencia": "Você usa mudança, ritmo e imprevisibilidade como arma. Sua força está em impedir que o adversário se acomode a uma única leitura.", "style": "Você usa mudança, ritmo e imprevisibilidade como arma. Sua força está em impedir que o adversário se acomode a uma única leitura.", "strength": "Iniciativa e quebra de padrões.", "risk": "Pode confundir variedade com eficiência.", "exercise": "Treine manter uma intenção simples mesmo quando muda a forma de agir."}, "Polvo":{"emoji":"🐙","slogan":"Encontra outro caminho.","essencia":"Você é o extremo da adaptação. Lê o contexto, muda a estratégia e encontra novas soluções sem precisar repetir a mesma resposta, reforça sua capacidade de perceber o outro e alterar o caminho.","style":"Você é o extremo da adaptação. Lê o contexto, muda a estratégia e encontra novas soluções sem precisar repetir a mesma resposta, reforça sua capacidade de perceber o outro e alterar o caminho.","strength":"Adaptação estratégica e múltiplas respostas possíveis.","risk":"Pode adaptar-se tanto que demora a impor uma decisão própria.","exercise":"Treine alternar conscientemente entre adaptação e imposição de plano."},"Gato": {"emoji": "🐱", "slogan": "Age quando a abertura vale a pena.", "essencia": "Você tem iniciativa, mas ela é seletiva. Não quer apenas surpreender: quer escolher bem o momento e transformar uma oportunidade limpa em ação.", "style": "Você tem iniciativa, mas ela é seletiva. Não quer apenas surpreender: quer escolher bem o momento e transformar uma oportunidade limpa em ação.", "strength": "Iniciativa seletiva e precisão de entrada.", "risk": "Pode abandonar oportunidades por procurar uma abertura excessivamente limpa.", "exercise": "Treine reconhecer quando uma abertura é suficientemente boa, e não perfeita."}, "Leopardo": {"emoji": "🐆", "slogan": "Vê espaço e avança.", "essencia": "Você prefere converter rapidamente a oportunidade em movimento. A velocidade da decisão e o avanço ofensivo definem mais seu estilo do que a variação constante.", "style": "Você prefere converter rapidamente a oportunidade em movimento. A velocidade da decisão e o avanço ofensivo definem mais seu estilo do que a variação constante.", "strength": "Iniciativa ofensiva e conversão rápida de oportunidades.", "risk": "Pode avançar antes de avaliar completamente a situação.", "exercise": "Treine preservar a qualidade da leitura sem reduzir sua velocidade de decisão."}, "Tigre": {"emoji": "🐯", "slogan": "Domina o espaço antes do golpe.", "essencia": "Sua força é tornar sua presença impossível de ignorar. Você ocupa, pressiona e faz o adversário sentir que precisa responder ao seu campo de ação.", "style": "Sua força é tornar sua presença impossível de ignorar. Você ocupa, pressiona e faz o adversário sentir que precisa responder ao seu campo de ação.", "strength": "Pressão e domínio psicológico do espaço.", "risk": "Pode tornar-se previsível se aumentar a pressão sempre da mesma forma.", "exercise": "Treine variar a forma da pressão sem perder presença."}, "Elefante":{"emoji":"🐘","slogan":"Avança com peso e permanência.","essencia":"Você combina estabilidade com avanço. A identidade do Elefante absorve a imponência e a persistência física. Quando ocupa um caminho, é difícil deslocá-lo.","style":"Você combina estabilidade com avanço. A identidade do Elefante absorve a imponência e a persistência física. Quando ocupa um caminho, é difícil deslocá-lo.","strength":"Estabilidade, pressão contínua e presença sustentada.","risk":"Pode tornar-se rígido ou lento para mudar de plano.","exercise":"Treine mudanças pequenas de direção e ritmo sem perder a base."},"Urso": {"emoji": "🐻", "slogan": "Pressiona até quebrar a resistência.", "essencia": "Você aceita o confronto direto e usa pressão, sustentação e explosões fortes para desgastar o adversário. Não precisa ser refinado o tempo todo para ser eficiente.", "style": "Você aceita o confronto direto e usa pressão, sustentação e explosões fortes para desgastar o adversário. Não precisa ser refinado o tempo todo para ser eficiente.", "strength": "Pressão, impacto e capacidade de continuar.", "risk": "Pode responder ao problema apenas aumentando força e intensidade.", "exercise": "Treine inserir leitura e escolha de alvo entre as explosões."}};
 
 
 function drawRadar(values){
@@ -524,5 +604,289 @@ document.getElementById('back').addEventListener('click',QuizUI.back);
 document.getElementById('restartQuizBtn')?.addEventListener('click',QuizUI.restart);
 QuizUI.render();
 window.__QUIZ_TEST__=Object.freeze({QuizEngine,QuizUI});
+
+/* =========================================
+   SHARE CARD — independente do QuizEngine
+   Gera PNG 1080x1920 (Instagram Stories).
+   ========================================= */
+const RESULT_SHARE_AXES = {"Tartaruga": ["Estabilidade", "Leitura", "Precisão"], "Coruja": ["Leitura", "Precisão", "Estabilidade"], "Serpente": ["Explosão", "Precisão", "Leitura"], "Escorpião": ["Precisão", "Explosão", "Leitura"], "Macaco": ["Iniciativa", "Explosão", "Adaptação"], "Polvo": ["Adaptação", "Leitura", "Iniciativa"], "Gato": ["Iniciativa", "Precisão", "Adaptação"], "Leopardo": ["Iniciativa", "Explosão", "Pressão"], "Tigre": ["Pressão", "Presença", "Explosão"], "Elefante": ["Estabilidade", "Pressão", "Presença"], "Urso": ["Pressão", "Explosão", "Estabilidade"]};
+
+const ResultShare = (() => {
+  const WIDTH = 1080;
+  const HEIGHT = 1920;
+  const colors = {
+    cream:'#f1faee', paper:'#f8fbf6', ice:'#a8dadc',
+    steel:'#457b9d', navy:'#1d3557', muted:'#617989', red:'#e63946'
+  };
+
+  const emojiFor = {
+    Tartaruga:'🐢', Coruja:'🦉', Serpente:'🐍', Escorpião:'🦂',
+    Macaco:'🐒', Polvo:'🐙', Gato:'🐱', Leopardo:'🐆',
+    Tigre:'🐯', Elefante:'🐘', Urso:'🐻'
+  };
+
+  function getAnimalName(){
+    const raw=(document.getElementById('animalName')?.textContent||'TIGRE').trim();
+    return raw.replace(/^\S+\s/,'').toLowerCase().replace(/(^|\s)\S/g,m=>m.toUpperCase());
+  }
+  function getSlogan(){return (document.getElementById('tagline')?.textContent||'').trim()}
+  function getStory(){return (document.getElementById('story')?.textContent||'').trim()}
+  function wrapText(ctx,text,maxWidth){
+    const words=String(text).split(/\s+/), lines=[]; let line='';
+    for(const word of words){
+      const test=line?line+' '+word:word;
+      if(ctx.measureText(test).width<=maxWidth) line=test;
+      else {if(line)lines.push(line); line=word;}
+    }
+    if(line)lines.push(line);
+    return lines;
+  }
+  function drawMultiline(ctx,text,x,y,maxWidth,lineHeight,maxLines){
+    const lines=wrapText(ctx,text,maxWidth).slice(0,maxLines);
+    lines.forEach((line,i)=>ctx.fillText(line,x,y+i*lineHeight));
+  }
+  function roundRect(ctx,x,y,w,h,r){
+    const rr=Math.min(r,w/2,h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+rr,y);ctx.arcTo(x+w,y,x+w,y+h,rr);ctx.arcTo(x+w,y+h,x,y+h,rr);
+    ctx.arcTo(x,y+h,x,y,rr);ctx.arcTo(x,y,x+w,y,rr);ctx.closePath();
+  }
+  function drawAxis(ctx,axis,x,y,w,h){
+    roundRect(ctx,x,y,w,h,14);
+    ctx.fillStyle='rgba(255,255,255,.48)';ctx.fill();
+    ctx.strokeStyle='rgba(168,218,220,.50)';ctx.lineWidth=2;ctx.stroke();
+    ctx.fillStyle=colors.red;ctx.fillRect(x+24,y+24,42,4);
+    ctx.fillStyle=colors.navy;ctx.font='600 28px "Cormorant Garamond"';ctx.textAlign='left';
+    ctx.fillText(axis,x+24,y+74);
+  }
+  async function waitForFonts(){
+    if(document.fonts?.ready){try{await document.fonts.ready}catch(e){}}
+  }
+  async function render(){
+    await waitForFonts();
+
+    const animal=getAnimalName();
+    const emoji=emojiFor[animal]||'◈';
+    const slogan=getSlogan();
+    const story=getStory();
+    const axes=RESULT_SHARE_AXES[animal]||[];
+
+    const canvas=document.createElement('canvas');
+    canvas.width=WIDTH;
+    canvas.height=HEIGHT;
+    const ctx=canvas.getContext('2d');
+
+    const center=WIDTH/2;
+
+    /* Fundo da linguagem visual principal */
+    ctx.fillStyle=colors.cream;
+    ctx.fillRect(0,0,WIDTH,HEIGHT);
+
+    /* Moldura sutil */
+    ctx.strokeStyle='rgba(69,123,157,.22)';
+    ctx.lineWidth=2;
+    ctx.strokeRect(22,22,WIDTH-44,HEIGHT-44);
+
+    /* =========================
+       LAYOUT A
+       ========================= */
+
+    /* Cabeçalho */
+    ctx.fillStyle=colors.steel;
+    ctx.font='700 15px Inter';
+    ctx.textAlign='center';
+    ctx.fillText('SEU ARQUÉTIPO DE COMBATE',center,104);
+
+    ctx.fillStyle=colors.red;
+    ctx.fillRect(center-28,132,56,4);
+
+    /* Título */
+    ctx.fillStyle=colors.navy;
+    ctx.font='600 102px "Cormorant Garamond"';
+    ctx.textAlign='center';
+    ctx.fillText(animal.toUpperCase(),center,255);
+
+    /* Ícone / medalhão central */
+    const medallionY=455;
+    ctx.beginPath();
+    ctx.arc(center,medallionY,168,0,Math.PI*2);
+    ctx.fillStyle='#edf4eb';
+    ctx.fill();
+    ctx.strokeStyle='rgba(168,218,220,.95)';
+    ctx.lineWidth=4;
+    ctx.stroke();
+
+    /* anel interno */
+    ctx.beginPath();
+    ctx.arc(center,medallionY,148,0,Math.PI*2);
+    ctx.strokeStyle='rgba(168,218,220,.36)';
+    ctx.lineWidth=2;
+    ctx.stroke();
+
+    ctx.fillStyle=colors.navy;
+    ctx.font='156px "Apple Color Emoji","Segoe UI Emoji",sans-serif';
+    ctx.textAlign='center';
+    ctx.fillText(emoji,center,medallionY+46);
+
+    /* Slogan abaixo */
+    ctx.fillStyle=colors.muted;
+    ctx.font='500 31px "Cormorant Garamond"';
+    drawMultiline(ctx,slogan,center,670,760,42,2);
+
+    /* Pequeno divisor */
+    ctx.fillStyle=colors.red;
+    ctx.fillRect(center-22,760,44,3);
+
+    /* =========================
+       3 EIXOS
+       ========================= */
+    const axisCardW=298;
+    const axisCardH=138;
+    const axisGap=18;
+    const axisStart=(WIDTH-(axisCardW*3+axisGap*2))/2;
+    const axisY=810;
+
+    axes.slice(0,3).forEach((axis,i)=>{
+      const x=axisStart+i*(axisCardW+axisGap);
+      drawAxis(ctx,axis,x,axisY,axisCardW,axisCardH);
+    });
+
+    /* =========================
+       HISTÓRIA DE COMBATE
+       ========================= */
+    const storyX=58, storyY=1010, storyW=WIDTH-116, storyH=430;
+    ctx.fillStyle=colors.navy;
+    roundRect(ctx,storyX,storyY,storyW,storyH,18);
+    ctx.fill();
+
+    ctx.fillStyle='#d9e8eb';
+    ctx.font='700 13px Inter';
+    ctx.textAlign='center';
+    ctx.fillText('UMA HISTÓRIA DE COMBATE',center,1070);
+
+    ctx.fillStyle='#fff';
+    ctx.font='500 33px "Cormorant Garamond"';
+    drawMultiline(ctx,story,center,1160,800,50,5);
+
+    /* Divisor inferior */
+    ctx.fillStyle=colors.red;
+    ctx.fillRect(center-28,1488,56,4);
+
+    /* Assinatura final discreta */
+    ctx.fillStyle=colors.steel;
+    ctx.font='700 12px Inter';
+    ctx.textAlign='center';
+    ctx.fillText('ARQUÉTIPOS DE KENDO',center,1545);
+
+    /* Área inferior suave / respiro */
+    ctx.fillStyle='rgba(168,218,220,.14)';
+    ctx.beginPath();
+    ctx.arc(center,1840,220,0,Math.PI*2);
+    ctx.fill();
+
+    ctx.fillStyle='rgba(29,53,87,.55)';
+    ctx.font='28px serif';
+    ctx.fillText('道',center,1848);
+
+    return await new Promise((resolve,reject)=>{
+      canvas.toBlob(blob=>{
+        if(blob) resolve({blob,canvas});
+        else reject(new Error('Não foi possível gerar a imagem.'));
+      },'image/png');
+    });
+  }
+
+  async function shareOrDownload(){
+    const {blob}=await render();
+    const animal=getAnimalName();
+    const filename=`arquetipo-${animal.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')}.png`;
+    const dataUrl=await new Promise((resolve,reject)=>{
+      const reader=new FileReader();
+      reader.onload=()=>resolve(reader.result);
+      reader.onerror=()=>reject(new Error('Falha ao preparar a imagem.'));
+      reader.readAsDataURL(blob);
+    });
+
+    const preview=document.getElementById('sharePreview');
+    const image=document.getElementById('sharePreviewImage');
+    const shareBtn=document.getElementById('sharePreviewShare');
+    const saveBtn=document.getElementById('sharePreviewSave');
+
+    image.src=dataUrl;
+    preview.classList.add('open');
+    preview.setAttribute('aria-hidden','false');
+
+    // Compartilhamento nativo: agora acionado por um clique REAL do usuário no botão da prévia.
+    shareBtn.onclick=async()=>{
+      const file=new File([blob],filename,{type:'image/png'});
+      try{
+        if(typeof navigator.share==='function'){
+          if(!navigator.canShare || navigator.canShare({files:[file]})){
+            await navigator.share({
+              title:`Meu arquétipo de Kendo: ${animal}`,
+              text:`Meu arquétipo de Kendo é ${animal}.`,
+              files:[file]
+            });
+            return;
+          }
+        }
+      }catch(error){
+        console.info('Compartilhamento nativo indisponível ou cancelado.',error);
+      }
+
+      // Fallback: abrir a imagem em uma nova aba. O usuário pode salvar pelo próprio navegador.
+      window.open(dataUrl,'_blank','noopener,noreferrer');
+    };
+
+    saveBtn.onclick=()=>{
+      // Primeiro tenta o download tradicional.
+      const link=document.createElement('a');
+      link.href=dataUrl;
+      link.download=filename;
+      link.target='_blank';
+      link.rel='noopener';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      // Fallback garantido: abrir a própria imagem.
+      setTimeout(()=>{
+        window.open(dataUrl,'_blank','noopener,noreferrer');
+      },400);
+    };
+
+    return 'preview';
+  }
+
+  return Object.freeze({render,shareOrDownload});
+})();
+
+document.getElementById('shareResultBtn')?.addEventListener('click',async(e)=>{
+  const btn=e.currentTarget,status=document.getElementById('shareStatus');
+  btn.disabled=true;btn.textContent='PREPARANDO IMAGEM…';
+  if(status)status.textContent='';
+  try{
+    const action=await ResultShare.shareOrDownload();
+    if(status)status.textContent='';
+  }catch(err){
+    console.error('Erro ao compartilhar resultado:',err);
+    if(status)status.textContent='Não foi possível compartilhar automaticamente. Tente novamente.';
+  }finally{
+    btn.disabled=false;btn.textContent='COMPARTILHAR RESULTADO  ↗';
+  }
+});
+
+document.getElementById('sharePreviewClose')?.addEventListener('click',()=>{
+  const p=document.getElementById('sharePreview');
+  p?.classList.remove('open');
+  p?.setAttribute('aria-hidden','true');
+});
+document.getElementById('sharePreview')?.addEventListener('click',(e)=>{
+  if(e.target.id==='sharePreview'){
+    e.currentTarget.classList.remove('open');
+    e.currentTarget.setAttribute('aria-hidden','true');
+  }
+});
+
 </script>
 </body></html>
